@@ -107,155 +107,158 @@
     </div>
 
     <script>
-        const defaultApps = [
-            { id: 1, name: "Bulking Tracker", url: "bulking.html", icon: "💪", locked: false },
-            { id: 2, name: "Calculator", url: "calculator.html", icon: "🧮", locked: true }
-        ];
+    const defaultApps = [
+        { id: 1, name: "Bulking Tracker", url: "bulking.html", icon: "💪", locked: false },
+        { id: 2, name: "Calculator", url: "calculator.html", icon: "🧮", locked: true }
+    ];
 
-        let apps = JSON.parse(localStorage.getItem('hub_apps')) || defaultApps;
-        let masterPin = localStorage.getItem('hub_pin') || null;
-        
-        // Track what we are trying to unlock: 'app' or 'settings'
-        let pendingAction = null; 
-        let pendingUrl = ""; 
+    let apps = JSON.parse(localStorage.getItem('hub_apps')) || defaultApps;
+    let masterPin = localStorage.getItem('hub_pin') || null;
+    
+    let pendingAction = null; 
+    let pendingUrl = ""; 
 
-        function renderApps() {
-            const grid = document.getElementById('app-grid');
-            const settingsList = document.getElementById('settings-app-list');
-            grid.innerHTML = "";
-            settingsList.innerHTML = "<h3>Manage Options</h3>";
+    function renderApps() {
+        const grid = document.getElementById('app-grid');
+        const settingsList = document.getElementById('settings-app-list');
+        grid.innerHTML = "";
+        settingsList.innerHTML = "<h3>Manage Options</h3>";
 
-            apps.forEach(app => {
-                const card = document.createElement('div');
-                card.className = 'card';
-                card.onclick = () => handleAppClick(app);
-                card.innerHTML = `
-                    ${app.locked ? '<div class="lock-icon">🔒</div>' : ''}
-                    <div class="icon">${app.icon}</div>
-                    <h2>${app.name}</h2>
-                `;
-                grid.appendChild(card);
+        apps.forEach(app => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.onclick = () => handleAppClick(app);
+            card.innerHTML = `
+                ${app.locked ? '<div class="lock-icon">🔒</div>' : ''}
+                <div class="icon">${app.icon}</div>
+                <h2>${app.name}</h2>
+            `;
+            grid.appendChild(card);
 
-                const listItem = document.createElement('div');
-                listItem.className = 'settings-item';
-                listItem.innerHTML = `
-                    <span>${app.icon} ${app.name} ${app.locked ? '🔒' : '🔓'}</span>
-                    <div>
-                        <button onclick="toggleLock(${app.id})">${app.locked ? 'Unlock' : 'Lock'}</button>
-                        <button class="danger" onclick="deleteApp(${app.id})">Del</button>
-                    </div>
-                `;
-                settingsList.appendChild(listItem);
-            });
-        }
+            const listItem = document.createElement('div');
+            listItem.className = 'settings-item';
+            listItem.innerHTML = `
+                <span>${app.icon} ${app.name} ${app.locked ? '🔒' : '🔓'}</span>
+                <div>
+                    <button onclick="toggleLock(${app.id})">${app.locked ? 'Unlock' : 'Lock'}</button>
+                    <button class="danger" onclick="deleteApp(${app.id})">Del</button>
+                </div>
+            `;
+            settingsList.appendChild(listItem);
+        });
+    }
 
-        function saveAndRender() {
-            localStorage.setItem('hub_apps', JSON.stringify(apps));
-            renderApps();
-        }
+    function saveAndRender() {
+        localStorage.setItem('hub_apps', JSON.stringify(apps));
+        renderApps();
+    }
 
-        function handleAppClick(app) {
-            if (app.locked) {
-                if (!masterPin) {
-                    alert("App is locked, but no PIN is set! Go to settings to set a PIN.");
-                    return;
-                }
-                pendingAction = 'app';
-                pendingUrl = app.url;
-                showPinModal();
-            } else {
-                window.location.href = app.url;
+    function handleAppClick(app) {
+        if (app.locked) {
+            if (!masterPin) {
+                alert("App is locked, but no PIN is set! Go to settings to set a PIN.");
+                return;
             }
+            pendingAction = 'app';
+            pendingUrl = app.url;
+            showPinModal();
+        } else {
+            window.location.href = app.url;
         }
+    }
 
-        function openSettings() {
-            if (masterPin) {
-                // Require PIN to enter settings
-                pendingAction = 'settings';
-                showPinModal();
-            } else {
-                // If no PIN is set yet, allow direct access
+    function openSettings() {
+        if (masterPin) {
+            pendingAction = 'settings';
+            showPinModal();
+        } else {
+            document.getElementById('settings-modal').style.display = 'flex';
+        }
+    }
+
+    function showPinModal() {
+        document.getElementById('pin-modal').style.display = 'flex';
+        document.getElementById('pin-input').value = '';
+        document.getElementById('pin-input').focus();
+    }
+
+    function verifyPin() {
+        const entered = document.getElementById('pin-input').value;
+        if (entered === masterPin) {
+            document.getElementById('pin-error').style.display = 'none';
+            
+            // Save the action before closing the modal clears it
+            const actionToTake = pendingAction;
+            
+            closeModal('pin-modal');
+            
+            // Route to the correct destination after unlock
+            if (actionToTake === 'app') {
+                window.location.href = pendingUrl;
+            } else if (actionToTake === 'settings') {
                 document.getElementById('settings-modal').style.display = 'flex';
             }
+        } else {
+            document.getElementById('pin-error').style.display = 'block';
         }
+    }
 
-        function showPinModal() {
-            document.getElementById('pin-modal').style.display = 'flex';
-            document.getElementById('pin-input').value = '';
-            document.getElementById('pin-input').focus();
-        }
-
-        function verifyPin() {
-            const entered = document.getElementById('pin-input').value;
-            if (entered === masterPin) {
-                document.getElementById('pin-error').style.display = 'none';
-                closeModal('pin-modal');
-                
-                // Route to the correct destination after unlock
-                if (pendingAction === 'app') {
-                    window.location.href = pendingUrl;
-                } else if (pendingAction === 'settings') {
-                    document.getElementById('settings-modal').style.display = 'flex';
-                }
-                
-                pendingAction = null;
+    function setNewPin() {
+        const newPin = prompt("Enter your new master PIN (leave blank to remove lock):");
+        if (newPin !== null) {
+            masterPin = newPin || null;
+            if (masterPin) {
+                localStorage.setItem('hub_pin', masterPin);
             } else {
-                document.getElementById('pin-error').style.display = 'block';
+                localStorage.removeItem('hub_pin');
             }
+            alert("Master PIN updated.");
         }
+    }
 
-        function setNewPin() {
-            const newPin = prompt("Enter your new master PIN (leave blank to remove lock):");
-            if (newPin !== null) {
-                masterPin = newPin || null;
-                if (masterPin) {
-                    localStorage.setItem('hub_pin', masterPin);
-                } else {
-                    localStorage.removeItem('hub_pin');
-                }
-                alert("Master PIN updated.");
-            }
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+        // Only clear pending action if the user manually closed the modal with the 'X' button
+        if (id === 'pin-modal') {
+             document.getElementById('pin-error').style.display = 'none';
         }
+        pendingAction = null;
+    }
 
-        function closeModal(id) {
-            document.getElementById(id).style.display = 'none';
-            pendingAction = null;
-        }
+    function addApp() {
+        const name = document.getElementById('new-name').value;
+        const url = document.getElementById('new-url').value;
+        const icon = document.getElementById('new-icon').value;
+        const locked = document.getElementById('new-locked').checked;
 
-        function addApp() {
-            const name = document.getElementById('new-name').value;
-            const url = document.getElementById('new-url').value;
-            const icon = document.getElementById('new-icon').value;
-            const locked = document.getElementById('new-locked').checked;
+        if (!name || !url) return alert("Name and URL are required!");
 
-            if (!name || !url) return alert("Name and URL are required!");
+        apps.push({ id: Date.now(), name, url, icon, locked });
+        
+        document.getElementById('new-name').value = '';
+        document.getElementById('new-url').value = '';
+        document.getElementById('new-icon').value = '';
+        document.getElementById('new-locked').checked = false;
 
-            apps.push({ id: Date.now(), name, url, icon, locked });
-            
-            document.getElementById('new-name').value = '';
-            document.getElementById('new-url').value = '';
-            document.getElementById('new-icon').value = '';
-            document.getElementById('new-locked').checked = false;
+        saveAndRender();
+    }
 
+    function deleteApp(id) {
+        if(confirm("Are you sure you want to delete this option?")) {
+            apps = apps.filter(app => app.id !== id);
             saveAndRender();
         }
+    }
 
-        function deleteApp(id) {
-            if(confirm("Are you sure you want to delete this option?")) {
-                apps = apps.filter(app => app.id !== id);
-                saveAndRender();
-            }
+    function toggleLock(id) {
+        const app = apps.find(a => a.id === id);
+        if (app) {
+            app.locked = !app.locked;
+            saveAndRender();
         }
+    }
 
-        function toggleLock(id) {
-            const app = apps.find(a => a.id === id);
-            if (app) {
-                app.locked = !app.locked;
-                saveAndRender();
-            }
-        }
-
-        renderApps();
-    </script>
+    renderApps();
+</script>
 </body>
 </html>
