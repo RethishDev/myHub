@@ -52,6 +52,10 @@
         button.primary { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; margin-bottom: 10px; }
         button.danger { background: var(--danger); color: white; border: none; padding: 5px 10px; border-radius: 5px; }
         
+        /* Fixed Checkbox Layout */
+        .checkbox-group { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; justify-content: flex-start; }
+        .checkbox-group input { width: auto; margin: 0; transform: scale(1.2); }
+
         /* Settings List */
         .settings-list { margin-top: 20px; border-top: 1px solid #ddd; padding-top: 10px; }
         .settings-item { display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; padding: 10px; margin-bottom: 10px; border-radius: 8px; }
@@ -90,9 +94,12 @@
             <input type="text" id="new-name" placeholder="Name (e.g. Bulking Tracker)">
             <input type="text" id="new-url" placeholder="URL (e.g. bulking.html)">
             <input type="text" id="new-icon" placeholder="Emoji Icon (e.g. 💪)">
-            <label style="display: block; margin-bottom: 10px;">
+            
+            <!-- Checkbox fix applied here -->
+            <label class="checkbox-group">
                 <input type="checkbox" id="new-locked"> Require PIN Lock
             </label>
+            
             <button class="primary" onclick="addApp()">Add Option</button>
 
             <div class="settings-list" id="settings-app-list"></div>
@@ -100,7 +107,6 @@
     </div>
 
     <script>
-        // Default data if first time loading
         const defaultApps = [
             { id: 1, name: "Bulking Tracker", url: "bulking.html", icon: "💪", locked: false },
             { id: 2, name: "Calculator", url: "calculator.html", icon: "🧮", locked: true }
@@ -108,9 +114,11 @@
 
         let apps = JSON.parse(localStorage.getItem('hub_apps')) || defaultApps;
         let masterPin = localStorage.getItem('hub_pin') || null;
-        let pendingUrl = ""; // Stores where to go after PIN success
+        
+        // Track what we are trying to unlock: 'app' or 'settings'
+        let pendingAction = null; 
+        let pendingUrl = ""; 
 
-        // Initialize UI
         function renderApps() {
             const grid = document.getElementById('app-grid');
             const settingsList = document.getElementById('settings-app-list');
@@ -118,7 +126,6 @@
             settingsList.innerHTML = "<h3>Manage Options</h3>";
 
             apps.forEach(app => {
-                // Render Front-end Dashboard Card
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.onclick = () => handleAppClick(app);
@@ -129,7 +136,6 @@
                 `;
                 grid.appendChild(card);
 
-                // Render Settings List Item
                 const listItem = document.createElement('div');
                 listItem.className = 'settings-item';
                 listItem.innerHTML = `
@@ -148,29 +154,51 @@
             renderApps();
         }
 
-        // Logic for clicking an app
         function handleAppClick(app) {
             if (app.locked) {
                 if (!masterPin) {
                     alert("App is locked, but no PIN is set! Go to settings to set a PIN.");
                     return;
                 }
+                pendingAction = 'app';
                 pendingUrl = app.url;
-                document.getElementById('pin-modal').style.display = 'flex';
-                document.getElementById('pin-input').value = '';
-                document.getElementById('pin-input').focus();
+                showPinModal();
             } else {
                 window.location.href = app.url;
             }
         }
 
-        // Security / PIN Logic
+        function openSettings() {
+            if (masterPin) {
+                // Require PIN to enter settings
+                pendingAction = 'settings';
+                showPinModal();
+            } else {
+                // If no PIN is set yet, allow direct access
+                document.getElementById('settings-modal').style.display = 'flex';
+            }
+        }
+
+        function showPinModal() {
+            document.getElementById('pin-modal').style.display = 'flex';
+            document.getElementById('pin-input').value = '';
+            document.getElementById('pin-input').focus();
+        }
+
         function verifyPin() {
             const entered = document.getElementById('pin-input').value;
             if (entered === masterPin) {
                 document.getElementById('pin-error').style.display = 'none';
                 closeModal('pin-modal');
-                window.location.href = pendingUrl;
+                
+                // Route to the correct destination after unlock
+                if (pendingAction === 'app') {
+                    window.location.href = pendingUrl;
+                } else if (pendingAction === 'settings') {
+                    document.getElementById('settings-modal').style.display = 'flex';
+                }
+                
+                pendingAction = null;
             } else {
                 document.getElementById('pin-error').style.display = 'block';
             }
@@ -179,22 +207,21 @@
         function setNewPin() {
             const newPin = prompt("Enter your new master PIN (leave blank to remove lock):");
             if (newPin !== null) {
-                masterPin = newPin;
-                localStorage.setItem('hub_pin', masterPin);
+                masterPin = newPin || null;
+                if (masterPin) {
+                    localStorage.setItem('hub_pin', masterPin);
+                } else {
+                    localStorage.removeItem('hub_pin');
+                }
                 alert("Master PIN updated.");
             }
         }
 
-        // Modals management
-        function openSettings() {
-            document.getElementById('settings-modal').style.display = 'flex';
-        }
-
         function closeModal(id) {
             document.getElementById(id).style.display = 'none';
+            pendingAction = null;
         }
 
-        // App Management (CRUD)
         function addApp() {
             const name = document.getElementById('new-name').value;
             const url = document.getElementById('new-url').value;
@@ -205,7 +232,6 @@
 
             apps.push({ id: Date.now(), name, url, icon, locked });
             
-            // Clear form
             document.getElementById('new-name').value = '';
             document.getElementById('new-url').value = '';
             document.getElementById('new-icon').value = '';
@@ -229,7 +255,6 @@
             }
         }
 
-        // Start app
         renderApps();
     </script>
 </body>
