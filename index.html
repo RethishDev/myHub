@@ -60,6 +60,31 @@
         .settings-list { margin-top: 20px; border-top: 1px solid #ddd; padding-top: 10px; }
         .settings-item { display: flex; justify-content: space-between; align-items: center; background: #f9f9f9; padding: 10px; margin-bottom: 10px; border-radius: 8px; }
         .settings-item span { font-size: 14px; }
+
+        /* New CSS for Edit Mode in Settings */
+.edit-mode input {
+    padding: 5px;
+    margin-bottom: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+.edit-mode input[type="text"] {
+    width: calc(100% - 10px);
+}
+.edit-controls {
+    display: flex;
+    gap: 5px;
+    margin-top: 5px;
+}
+.edit-controls button {
+    padding: 5px 10px;
+    font-size: 12px;
+}
+.settings-item-content {
+    flex-grow: 1;
+    margin-right: 10px;
+}
     </style>
 </head>
 <body>
@@ -108,7 +133,6 @@
 
     <script>
     const defaultApps = [
-        { id: 1, name: "Bulking Tracker", url: "bulking.html", icon: "💪", locked: false },
         { id: 2, name: "Calculator", url: "calculator.html", icon: "🧮", locked: true }
     ];
 
@@ -117,6 +141,7 @@
     
     let pendingAction = null; 
     let pendingUrl = ""; 
+    let editingId = null; // Track which app is currently being edited
 
     function renderApps() {
         const grid = document.getElementById('app-grid');
@@ -125,6 +150,7 @@
         settingsList.innerHTML = "<h3>Manage Options</h3>";
 
         apps.forEach(app => {
+            // Render Dashboard Card
             const card = document.createElement('div');
             card.className = 'card';
             card.onclick = () => handleAppClick(app);
@@ -135,15 +161,39 @@
             `;
             grid.appendChild(card);
 
+            // Render Settings List Item
             const listItem = document.createElement('div');
             listItem.className = 'settings-item';
-            listItem.innerHTML = `
-                <span>${app.icon} ${app.name} ${app.locked ? '🔒' : '🔓'}</span>
-                <div>
-                    <button onclick="toggleLock(${app.id})">${app.locked ? 'Unlock' : 'Lock'}</button>
-                    <button class="danger" onclick="deleteApp(${app.id})">Del</button>
-                </div>
-            `;
+            
+            if (editingId === app.id) {
+                // Render Edit Mode
+                listItem.classList.add('edit-mode');
+                listItem.innerHTML = `
+                    <div class="settings-item-content">
+                        <input type="text" id="edit-name-${app.id}" value="${app.name}" placeholder="Name">
+                        <input type="text" id="edit-url-${app.id}" value="${app.url}" placeholder="URL">
+                        <input type="text" id="edit-icon-${app.id}" value="${app.icon}" placeholder="Emoji">
+                        <label class="checkbox-group" style="margin-bottom:0; font-size:12px;">
+                            <input type="checkbox" id="edit-locked-${app.id}" ${app.locked ? 'checked' : ''}> Locked
+                        </label>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:5px;">
+                        <button class="primary" style="margin:0; padding:5px 10px; font-size:12px; background:#27ae60;" onclick="saveEdit(${app.id})">Save</button>
+                        <button class="danger" onclick="cancelEdit()">Cancel</button>
+                    </div>
+                `;
+            } else {
+                // Render Normal Mode
+                listItem.innerHTML = `
+                    <div class="settings-item-content">
+                        <span>${app.icon} ${app.name} ${app.locked ? '🔒' : '🔓'}</span>
+                    </div>
+                    <div>
+                        <button style="padding:5px 10px;" onclick="startEdit(${app.id})">Edit</button>
+                        <button class="danger" style="margin-left:5px;" onclick="deleteApp(${app.id})">Del</button>
+                    </div>
+                `;
+            }
             settingsList.appendChild(listItem);
         });
     }
@@ -186,13 +236,9 @@
         const entered = document.getElementById('pin-input').value;
         if (entered === masterPin) {
             document.getElementById('pin-error').style.display = 'none';
-            
-            // Save the action before closing the modal clears it
             const actionToTake = pendingAction;
-            
             closeModal('pin-modal');
             
-            // Route to the correct destination after unlock
             if (actionToTake === 'app') {
                 window.location.href = pendingUrl;
             } else if (actionToTake === 'settings') {
@@ -218,11 +264,12 @@
 
     function closeModal(id) {
         document.getElementById(id).style.display = 'none';
-        // Only clear pending action if the user manually closed the modal with the 'X' button
         if (id === 'pin-modal') {
              document.getElementById('pin-error').style.display = 'none';
         }
         pendingAction = null;
+        editingId = null; // Close any open edit fields when closing settings
+        if(id === 'settings-modal') renderApps();
     }
 
     function addApp() {
@@ -250,10 +297,35 @@
         }
     }
 
-    function toggleLock(id) {
+    // --- New Edit Functions --- //
+    
+    function startEdit(id) {
+        editingId = id;
+        renderApps(); // Re-render to show the input fields for this specific app
+    }
+
+    function cancelEdit() {
+        editingId = null;
+        renderApps(); // Re-render to revert back to text view
+    }
+
+    function saveEdit(id) {
         const app = apps.find(a => a.id === id);
         if (app) {
-            app.locked = !app.locked;
+            const newName = document.getElementById(`edit-name-${id}`).value;
+            const newUrl = document.getElementById(`edit-url-${id}`).value;
+            
+            if (!newName || !newUrl) {
+                alert("Name and URL cannot be empty!");
+                return;
+            }
+
+            app.name = newName;
+            app.url = newUrl;
+            app.icon = document.getElementById(`edit-icon-${id}`).value || app.icon;
+            app.locked = document.getElementById(`edit-locked-${id}`).checked;
+            
+            editingId = null; // Close edit mode
             saveAndRender();
         }
     }
